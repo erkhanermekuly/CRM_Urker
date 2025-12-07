@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления - CRM</title>
+    <link rel="stylesheet" href="/styles/all.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .logout-btn {
+            padding: 8px 16px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .nav {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .nav-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .nav-btn:hover {
+            background: #5568d3;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CRM Система</h1>
+        <div class="user-info">
+            <span id="userName"></span>
+            <button class="logout-btn" onclick="logout()">Выйти</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="nav">
+            <a href="/dashboard" class="nav-btn">Главная</a>
+            <a href="/clients" class="nav-btn" id="navClients">Клиенты</a>
+            <a href="/olympiads" class="nav-btn" id="navOlympiads">Олимпиады</a>
+            <a href="/timer" class="nav-btn" id="navTimer">Таймер</a>
+            <a href="/reports" class="nav-btn" id="navReports">Отчеты</a>
+            <a href="/employees" class="nav-btn" id="navEmployees" style="display: none;">Сотрудники</a>
+            <a href="/profile" class="nav-btn">Профиль</a>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <h3>Всего клиентов</h3>
+                <div class="value" id="totalClients">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Новых клиентов</h3>
+                <div class="value" id="newClients">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Оплативших</h3>
+                <div class="value" id="paidClients">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Активных олимпиад</h3>
+                <div class="value" id="activeOlympiads">-</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <h2>Добро пожаловать в CRM систему!</h2>
+            <p style="margin-top: 20px; color: #666;">
+                Используйте меню навигации для доступа к различным разделам системы.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Проверка авторизации
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+        if (!token) {
+            window.location.href = '/login';
+        }
+
+        document.getElementById('userName').textContent = user.full_name || 'Пользователь';
+
+        // Показать/скрыть элементы меню в зависимости от роли
+        const role = user.role;
+        
+        // Клиенты: директор, зам. директора, менеджер, маркетолог
+        if (!['director', 'vice_director', 'manager', 'marketer'].includes(role)) {
+            document.getElementById('navClients').style.display = 'none';
+        }
+        
+        // Олимпиады: директор, зам. директора, менеджер
+        if (!['director', 'vice_director', 'manager'].includes(role)) {
+            document.getElementById('navOlympiads').style.display = 'none';
+        }
+        
+        // Таймер: все
+        // Отчеты: директор, зам. директора
+        if (!['director', 'vice_director'].includes(role)) {
+            document.getElementById('navReports').style.display = 'none';
+        }
+        
+        // Сотрудники: директор, зам. директора
+        if (['director', 'vice_director'].includes(role)) {
+            document.getElementById('navEmployees').style.display = 'inline-block';
+        }
+
+        // Загрузка статистики
+        async function loadStats() {
+            try {
+                const [clientsRes, olympiadsRes] = await Promise.all([
+                    fetch('/api/clients?limit=1000', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch('/api/olympiads?status=active', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ]);
+
+                const clientsData = await clientsRes.json();
+                const olympiadsData = await olympiadsRes.json();
+
+                const clients = clientsData.clients || [];
+                document.getElementById('totalClients').textContent = clients.length;
+                document.getElementById('newClients').textContent = 
+                    clients.filter(c => c.status === 'new').length;
+                document.getElementById('paidClients').textContent = 
+                    clients.filter(c => c.status === 'paid').length;
+                document.getElementById('activeOlympiads').textContent = 
+                    olympiadsData.olympiads?.length || 0;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>
+

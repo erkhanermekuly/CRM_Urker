@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Олимпиады - CRM</title>
+    <link rel="stylesheet" href="/styles/all.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        .nav {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .nav-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-primary {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .filters input, .filters select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .olympiads-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .olympiad-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .olympiad-card h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .olympiad-card .info {
+            color: #666;
+            margin: 5px 0;
+        }
+        .olympiad-card .price {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+        .status-planned { background: #e3f2fd; color: #1976d2; }
+        .status-active { background: #e8f5e9; color: #388e3c; }
+        .status-completed { background: #f1f8e9; color: #558b2f; }
+        .status-cancelled { background: #ffebee; color: #c62828; }
+        .actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-view {
+            background: #667eea;
+            color: white;
+        }
+        .btn-edit {
+            background: #4caf50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Олимпиады</h1>
+        <button class="btn-primary" id="createBtn" onclick="showCreateModal()" style="display: none;">+ Создать олимпиаду</button>
+    </div>
+
+    <div class="container">
+        <div class="nav">
+            <a href="/dashboard" class="nav-btn">Главная</a>
+            <a href="/clients" class="nav-btn">Клиенты</a>
+            <a href="/olympiads" class="nav-btn">Олимпиады</a>
+            <a href="/timer" class="nav-btn">Таймер</a>
+            <a href="/reports" class="nav-btn">Отчеты</a>
+            <a href="/employees" class="nav-btn" id="navEmployees" style="display: none;">Сотрудники</a>
+            <a href="/profile" class="nav-btn">Профиль</a>
+        </div>
+
+        <div class="filters">
+            <select id="subjectFilter" onchange="loadOlympiads()">
+                <option value="">Все предметы</option>
+                <option value="mathematics">Математика</option>
+                <option value="physics">Физика</option>
+                <option value="chemistry">Химия</option>
+                <option value="computer_science">ИКТ</option>
+                <option value="english">Английский</option>
+                <option value="russian">Русский</option>
+                <option value="history">История</option>
+                <option value="biology">Биология</option>
+            </select>
+            <select id="statusFilter" onchange="loadOlympiads()">
+                <option value="">Все статусы</option>
+                <option value="planned">Запланирована</option>
+                <option value="active">Активна</option>
+                <option value="completed">Завершена</option>
+                <option value="cancelled">Отменена</option>
+            </select>
+        </div>
+
+        <div class="olympiads-grid" id="olympiadsGrid">
+            <div>Загрузка...</div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (!token) window.location.href = '/login';
+
+        // Показать кнопку создания только для директора и зам. директора
+        if (user.role === 'director' || user.role === 'vice_director') {
+            document.getElementById('createBtn').style.display = 'block';
+            document.getElementById('navEmployees').style.display = 'inline-block';
+        }
+
+        async function loadOlympiads() {
+            const subject = document.getElementById('subjectFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            
+            let url = '/api/olympiads?';
+            if (subject) url += `subject=${subject}&`;
+            if (status) url += `status=${status}&`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.status === 403) {
+                    alert('У вас нет доступа к этой странице');
+                    window.location.href = '/dashboard';
+                    return;
+                }
+
+                const data = await response.json();
+                displayOlympiads(data.olympiads || []);
+            } catch (error) {
+                console.error('Error loading olympiads:', error);
+            }
+        }
+
+        function displayOlympiads(olympiads) {
+            const grid = document.getElementById('olympiadsGrid');
+            if (olympiads.length === 0) {
+                grid.innerHTML = '<div>Олимпиады не найдены</div>';
+                return;
+            }
+
+            grid.innerHTML = olympiads.map(olympiad => {
+                const date = new Date(olympiad.date).toLocaleDateString('ru-RU');
+                const registrations = olympiad.registrations?.length || 0;
+                const statusNames = {
+                    'planned': 'Запланирована',
+                    'active': 'Активна',
+                    'completed': 'Завершена',
+                    'cancelled': 'Отменена'
+                };
+                const subjectNames = {
+                    'mathematics': 'Математика',
+                    'physics': 'Физика',
+                    'chemistry': 'Химия',
+                    'computer_science': 'ИКТ',
+                    'english': 'Английский',
+                    'russian': 'Русский',
+                    'history': 'История',
+                    'biology': 'Биология'
+                };
+
+                return `
+                    <div class="olympiad-card">
+                        <h3>${olympiad.name}</h3>
+                        <div class="info">Предмет: ${subjectNames[olympiad.subject] || olympiad.subject}</div>
+                        <div class="info">Дата: ${date}</div>
+                        <div class="info">Формат: ${olympiad.format === 'online' ? 'Онлайн' : 'Офлайн'}</div>
+                        <div class="price">${olympiad.price} ₽</div>
+                        <div class="info">Участников: ${registrations}</div>
+                        <span class="status-badge status-${olympiad.status}">${statusNames[olympiad.status]}</span>
+                        <div class="actions">
+                            <button class="btn-small btn-view" onclick="viewOlympiad(${olympiad.id})">Просмотр</button>
+                            ${user.role === 'director' || user.role === 'vice_director' || user.role === 'manager' ? 
+                                `<button class="btn-small btn-edit" onclick="editOlympiad(${olympiad.id})">Редактировать</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function showCreateModal() {
+            const name = prompt('Название олимпиады:');
+            if (!name) return;
+            
+            const subject = prompt('Предмет (mathematics, physics, chemistry, computer_science, english, russian, history, biology):');
+            if (!subject) return;
+            
+            const date = prompt('Дата (YYYY-MM-DD):');
+            if (!date) return;
+            
+            const price = prompt('Стоимость:');
+            if (!price) return;
+            
+            const format = confirm('Онлайн? (OK - да, Отмена - нет)') ? 'online' : 'offline';
+
+            createOlympiad({ name, subject, date, price: parseFloat(price), format });
+        }
+
+        async function createOlympiad(data) {
+            try {
+                const response = await fetch('/api/olympiads', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    loadOlympiads();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Ошибка при создании олимпиады');
+                }
+            } catch (error) {
+                console.error('Error creating olympiad:', error);
+                alert('Ошибка при создании олимпиады');
+            }
+        }
+
+        function viewOlympiad(id) {
+            window.location.href = `/olympiad/${id}`;
+        }
+
+        function editOlympiad(id) {
+            alert('Функция редактирования в разработке');
+        }
+
+        loadOlympiads();
+    </script>
+</body>
+</html>
+
